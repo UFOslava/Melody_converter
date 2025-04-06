@@ -89,20 +89,22 @@ def preview_midi_tracks(midi_file: str):
 
     for i, track in enumerate(mid.tracks):
         track_name = f'Track {i + 1}'
+        if len(track) < 10:
+            continue
         for msg in track:
             if msg.type == 'track_name':
                 track_name = msg.name
                 break  # Track name found, no need to look further
 
         print(f'{track_name}:')
-        for msg in track[:5]:  # Preview the first 5 events
+        for msg in track[:10]:  # Preview the first 5 events
             print(f'  {msg}')
-        if len(track) > 5:
+        if len(track) > 10:
             print("  ...")
         print()
 
 
 # Example usage: Preview the tracks in "twinkle.mid"
-# preview_midi_tracks('Melodies/BeverlyHillsCopThemeSong.mid')
+preview_midi_tracks('Melodies/BeverlyHillsCopThemeSong.mid')
 
-play_melody_from_file("Melodies/Twinkle.txt")
+# play_melody_from_file("Melodies/Twinkle.txt")
