@@ -2,8 +2,10 @@ import sounddevice as sd
 import numpy as np
 import mido
 
+import Function_gen as fg
 
-def play_tone(frequency, duration: float, duty_cycle=0.05, volume=0.2, sample_rate=44100):
+
+def play_tone(frequency: int, duration: float, duty_cycle=0.05, volume=0.2, sample_rate=44100):
     """Generates and plays a tone to the PC speakers
 
     TODO fix tone inconsistency"""
@@ -23,9 +25,9 @@ def play_tone(frequency, duration: float, duty_cycle=0.05, volume=0.2, sample_ra
     sd.wait()
 
 
-def midi_note_to_frequency(midi_note: int) -> float:
+def midi_note_to_frequency(midi_note: int) -> int:
     frequency: float = 2 ** ((midi_note - 69) / 12) * 440
-    return frequency
+    return int(frequency)
 
 
 def play_note(midi_note: int, duration: float):
@@ -104,7 +106,30 @@ def preview_midi_tracks(midi_file: str):
         print()
 
 
+class Function_Gen:
+    """Responsible for tracking the state of the function generator"""
+
+    def __init__(self, visa: fg.VISA_Connection):
+        self.visa = visa
+        output: bool = False
+
+    def configure_vpp(self, vpp: float = 3.1):
+        pass
+
+    def configure_offset(self, offset: float = 1.55):
+        pass
+
+    def configure_pulse_width(self, pulse_width: float = 5e-5):
+        pass
+
+    def play_tone(self, freq: float, duration: float, stop: bool = True):
+        pass
+
+
+with fg.VISA_Connection(fg.Device(fg.scan_visa(resource_filter="2391::9479")[0])) as visa:
+    function_generator = Function_Gen(visa)
+
 # Example usage: Preview the tracks in "twinkle.mid"
-preview_midi_tracks('Melodies/BeverlyHillsCopThemeSong.mid')
+# preview_midi_tracks('Melodies/BeverlyHillsCopThemeSong.mid')
 
 # play_melody_from_file("Melodies/Twinkle.txt")
