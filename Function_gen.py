@@ -1,78 +1,50 @@
+import logging
+from time import sleep
 import pyvisa
 
 
-def scan_visa(backend: str = "@py"):
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+
+
+def scan_visa(backend: str = "@py", resource_filter: str = "USB") -> list[str]:
     rm = pyvisa.ResourceManager(backend)  # '@py' for pyvisa-py backend
     # rm = pyvisa.ResourceManager()
+    resources = list()
+    logging.info(f"Scanning VISA devices...")
     try:
-        resources = rm.list_resources()
-        if resources:
-            print("Available VISA resources:")
-        for resource in resources:
-            print(resource)
-        if not resources:
-            print("No VISA resources available.")
+        resources = rm.list_resources(query=resource_filter)
     except Exception as e:
         print(f"Error listing resources: {e}")
     finally:
         rm.close()
-
-
-def test_func_gen_connection():
-    resource_manager = pyvisa.ResourceManager('@py')
-    instrument_address = 'USB0::2391::9479::MY52102525::0::INSTR'  # Replace with your actual address
-
-    try:
-        instrument = resource_manager.open_resource(instrument_address)
-        print(f"Successfully connected to: {instrument.resource_name}")
-
-        # Query the instrument's identification
-        identification = instrument.query('*IDN?')
-        print(f"Instrument identification: {identification.strip()}")
-
-        # You can now send other commands to control the instrument
-        # For example, to set the output to a sine wave at 1 kHz with 1 Vpp:
-        instrument.write('SOUR1:FUNC SIN')
-        instrument.write('SOUR1:FREQ 1000')
-        instrument.write('SOUR1:VOLT 1VP')
-        instrument.write('OUTP1 ON')
-
-    except pyvisa.VisaIOError as e:
-        print(f"Error communicating with the instrument: {e}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-    finally:
-        if 'instrument' in locals() and instrument.is_open:
-            instrument.close()
-            resource_manager.close()
-            print("Instrument connection closed.")
-        elif 'resource_manager' in locals():
-            resource_manager.close()
+        return list(resources)
 
 
 class Device:
     """Class to hold device info
     USB0::2391::9479::MY52102525::0::INSTR"""
-    def __init__(self, ResourceName: str):
-        parts = ResourceName.split('::')
-        if len(parts) == 5 or len(parts) == 6:
-            self.Protocol = parts[0]
-            try:
-                self.VendorID = int(parts[1])
-                self.ProductID = int(parts[2])
-                self.SN = parts[3]
-                self.InterfaceID = int(parts[4]) if len(parts) == 6 else 0
-            except ValueError:
-                print(f"Error: Could not parse numeric IDs from '{ResourceName}'")
-                self.VendorID = None
-                self.ProductID = None
-                self.InterfaceID = None
-        else:
-            print(f"Error: Invalid resource name format: '{ResourceName}'")
-            self.Protocol = None
+    def __init__(self, resource_name: str):
+        self.resource_name = resource_name
+        self.parts = self.resource_name.split('::')
+        self.Protocol = self.parts[0]
+
+    def res(self) -> str:
+        return self.resource_name
+
+
+class USB_Device(Device):
+    def __init__(self, resource_name: str):
+        super().__init__(resource_name)
+        try:
+            self.VendorID = int(self.parts[1])
+            self.ProductID = int(self.parts[2])
+            self.SN = self.parts[3]
+            self.InterfaceID = int(self.parts[4]) if len(self.parts) == 6 else 0
+        except ValueError:
+            print(f"Error: Could not parse numeric IDs from '{resource_name}'")
             self.VendorID = None
             self.ProductID = None
-            self.SN = None
             self.InterfaceID = None
 
     def set(self, Protocol: str, VendorID: int, ProductID: int, SN: str, InterfaceID: int = 0):
@@ -91,7 +63,9 @@ class Device:
                 f"InterfaceID={self.InterfaceID})")
 
     def __str__(self):
-        return f"{self.Protocol} Device: VendorID=0x{self.VendorID:04X}, ProductID=0x{self.ProductID:04X}, SN='{self.SN}'"
+        return (f"{self.Protocol} Device: VendorID=0x{self.VendorID:04X},"
+                f" ProductID=0x{self.ProductID:04X},"
+                f" SN='{self.SN}'")
 
     def __eq__(self, other):
         if not isinstance(other, Device):
@@ -106,10 +80,80 @@ class Device:
         return hash((self.Protocol, self.VendorID, self.ProductID, self.SN, self.InterfaceID))
 
 
-# class WaveformGenerator_33500B:
-#     def __init__(self, ):
-#
-#
-# test_func_gen_connection()
+def device_factory(resource_name: str) -> Device:
+    parts = resource_name.split("::")
+    if parts:
+        protocol = parts[0].lower()
+        if protocol.startswith("usb"):
+            return USB_Device(resource_name)
+        else:
+            return Device(resource_name)
+    else:
+        return Device(resource_name)
 
-device = Device()
+
+class VISA_Connection:
+    instrument: pyvisa.Resource | None
+    def __init__(self, visa_device: Device):
+        self.visa_device = visa_device
+        self.resource_manager = None
+        self.instrument = None
+
+
+    def __enter__(self):
+        print(f"Connecting to {self.visa_device.resource_name}...")
+        self.resource_manager = pyvisa.ResourceManager('@py')  # Initialize here
+        try:
+            self.instrument = self.resource_manager.open_resource(self.visa_device.resource_name)
+            print(f"Successfully connected to: {self.instrument.resource_name}")
+
+            # Query the instrument's identification
+            identification = self.instrument.query('*IDN?')
+            print(f"Instrument identification: {identification.strip()}")
+
+            # You can now send other commands to control the instrument
+            # For example, to set the output to a sine wave at 1 kHz with 1 Vpp:
+            # instrument.write('SOUR1:FUNC SIN')
+            # instrument.write('SOUR1:FREQ 1000')
+            # instrument.write('SOUR1:VOLT 1VP')
+            # self.instrument.write('OUTP1 ON')
+            # sleep(0.5)
+            # self.instrument.write('OUTP1 OFF')
+            return self  # Return self to allow use with 'as'
+
+        except pyvisa.VisaIOError as e:
+            print(f"Error communicating with the instrument: {e}")
+            self.__exit__(None, None, None)  # Ensure cleanup even on connect fail
+            raise  # Re-raise the exception to stop execution
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+            self.__exit__(None, None, None)
+            raise
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            if self.instrument:  # Check if instrument is valid
+                self.instrument.close()
+            if self.resource_manager:
+                self.resource_manager.close()
+            print("Instrument connection closed.")
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
+
+    def write(self, msg: str):
+        if not self.instrument:
+            raise ValueError("Instrument is not connected.")
+        self.instrument.write(msg)
+
+
+device = Device(scan_visa(resource_filter="2391::9479")[0])
+try:
+    with VISA_Connection(device) as VISA:
+        VISA.write('SOUR1:FREQ 1000')
+        VISA.write('OUTP1 ON')
+        sleep(0.1)
+        VISA.write('SOUR1:FREQ 2000')
+
+        VISA.write('OUTP1 OFF')
+except Exception as e:
+    print(f"An error occurred during the main execution: {e}")
