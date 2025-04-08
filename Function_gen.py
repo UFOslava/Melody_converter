@@ -3,10 +3,6 @@ from time import sleep
 import pyvisa
 
 
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
-
-
 def scan_visa(backend: str = "@py", resource_filter: str = "USB") -> list[str]:
     rm = pyvisa.ResourceManager(backend)  # '@py' for pyvisa-py backend
     # rm = pyvisa.ResourceManager()
@@ -24,6 +20,7 @@ def scan_visa(backend: str = "@py", resource_filter: str = "USB") -> list[str]:
 class Device:
     """Class to hold device info
     USB0::2391::9479::MY52102525::0::INSTR"""
+
     def __init__(self, resource_name: str):
         self.resource_name = resource_name
         self.parts = self.resource_name.split('::')
@@ -93,16 +90,16 @@ def device_factory(resource_name: str) -> Device:
 
 
 class VISA_Connection:
-    instrument: pyvisa.Resource | None
+    instrument: pyvisa.Resource
+
     def __init__(self, visa_device: Device):
         self.visa_device = visa_device
-        self.resource_manager = None
+        self.resource_manager = pyvisa.ResourceManager('@py')  # Initialize here
         self.instrument = None
-
 
     def __enter__(self):
         print(f"Connecting to {self.visa_device.resource_name}...")
-        self.resource_manager = pyvisa.ResourceManager('@py')  # Initialize here
+
         try:
             self.instrument = self.resource_manager.open_resource(self.visa_device.resource_name)
             print(f"Successfully connected to: {self.instrument.resource_name}")
@@ -144,16 +141,37 @@ class VISA_Connection:
         if not self.instrument:
             raise ValueError("Instrument is not connected.")
         self.instrument.write(msg)
+        logging.info(f'Sending "{msg}"')
+
+    def query(self, msg: str) -> str:
+        if not self.instrument:
+            raise ValueError("Instrument is not connected.")
+        logging.info(f'Sending "{msg}"')
+        answer = str(self.instrument.query(msg))
+        logging.info(f'Answer: "{answer}"')
+        return answer
 
 
-device = Device(scan_visa(resource_filter="2391::9479")[0])
-try:
-    with VISA_Connection(device) as VISA:
-        VISA.write('SOUR1:FREQ 1000')
-        VISA.write('OUTP1 ON')
-        sleep(0.1)
-        VISA.write('SOUR1:FREQ 2000')
-
-        VISA.write('OUTP1 OFF')
-except Exception as e:
-    print(f"An error occurred during the main execution: {e}")
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    device_filter: str = "2391::9479"
+    logging.info(f'Device Filter: "{device_filter}"')
+    # devices = scan_visa(resource_filter=device_filter)
+    devices = scan_visa()
+    if devices:
+        device = Device(devices[0])
+        try:
+            with VISA_Connection(device) as VISA:
+                VISA.write('SOUR1:FREQ 1000')
+                VISA.write('OUTP1 ON')
+                sleep(0.5)
+                VISA.write('OUTP1 OFF')
+        except Exception as e:
+            print(f"An error occurred during the main execution: {e}")
+    else:
+        logging.warning("No devices matching the filter...")
+        devices = scan_visa()
+        if devices:
+            logging.info(f"Available devices ({len(devices)}):")
+            for device in devices:
+                logging.info(f"{device}")
