@@ -44,12 +44,12 @@ class USB_Device(Device):
             self.ProductID = None
             self.InterfaceID = None
 
-    def set(self, Protocol: str, VendorID: int, ProductID: int, SN: str, InterfaceID: int = 0):
-        self.Protocol: str = Protocol
-        self.VendorID: int = VendorID
-        self.ProductID: int = ProductID
-        self.SN: str = SN
-        self.InterfaceID: int = InterfaceID
+    def set(self, protocol: str, vendor_id: int, product_id: int, sn: str, interface_id: int = 0):
+        self.Protocol: str = protocol
+        self.VendorID: int = vendor_id
+        self.ProductID: int = product_id
+        self.SN: str = sn
+        self.InterfaceID: int = interface_id
 
     def __repr__(self):
         return (f"Device(ResourceName='{self.ResourceName}', "
@@ -64,14 +64,14 @@ class USB_Device(Device):
                 f" ProductID=0x{self.ProductID:04X},"
                 f" SN='{self.SN}'")
 
-    def __eq__(self, other):
-        if not isinstance(other, Device):
-            return NotImplemented
-        return (self.Protocol == other.Protocol and
-                self.VendorID == other.VendorID and
-                self.ProductID == other.ProductID and
-                self.SN == other.SN and
-                self.InterfaceID == other.InterfaceID)
+    # def __eq__(self, other):
+    #     if not isinstance(other, Device):
+    #         return NotImplemented
+    #     return (self.Protocol == other.Protocol and
+    #             self.VendorID == other.VendorID and
+    #             self.ProductID == other.ProductID and
+    #             self.SN == other.SN and
+    #             self.InterfaceID == other.InterfaceID)
 
     def __hash__(self):
         return hash((self.Protocol, self.VendorID, self.ProductID, self.SN, self.InterfaceID))
@@ -148,8 +148,88 @@ class VISA_Connection:
             raise ValueError("Instrument is not connected.")
         logging.info(f'Sending "{msg}"')
         answer = str(self.instrument.query(msg))
-        logging.info(f'Answer: "{answer}"')
+        logging.info(f'Answer: "{answer.strip()}"')
         return answer
+
+
+class Function_Gen:
+    """Responsible for tracking the state of the function generator"""
+
+    def __init__(self, visa_instance: VISA_Connection, vpp: float, offset: float, pulse_width: float):
+        self.visa = visa_instance
+        self.output: bool
+        self._set_outp(False, soft=False)
+        #  Frequency
+        self.freq: int = 1000
+        self.configure_freq(self.freq)
+        #  Voltage
+        self.volt: float = vpp
+        self.configure_vpp(self.volt)
+        #  Pulse width
+        self.width = pulse_width
+        self.configure_pulse_width(self.width)
+        #  Offset
+        self.offset: float = offset
+        self.configure_offset(self.offset)
+
+        self.freq = int(float(self.visa.query("SOUR1:FREQ?")))
+        print(self.freq)
+
+    def configure_vpp(self, vpp: float):
+        self.visa.write(f"VOLT {vpp}")
+
+    def configure_offset(self, offset: float):
+        self.visa.write(f"VOLT:OFFS {offset}")
+
+    def configure_pulse_width(self, pulse_width: float):
+        # self.visa.write(f"FUNC:PULS:WIDT {pulse_width:.3e}")
+        self.visa.write(f"FUNC:PULS:WIDT {pulse_width}")
+
+    def configure_freq(self, freq:int):
+        self.visa.write(f'SOUR1:FREQ {freq}')
+        self.freq = freq
+        # self.visa.write(f'SOUR1:FREQ {freq:.3e}')
+
+    def play_tone(self, freq: int, duration: float, stop: bool = True, wait: bool = True,
+                  soft_stop: bool = True) -> None:
+        """Sends VISA SCPI commands to the Function Generator, to produce a tone.
+
+        :param soft_stop: Should the output be shut down with a relay click, or just brought to 0v quietly?
+        :type soft_stop:
+        :param freq: Tone, in Hz
+        :type freq:
+        :param duration: Duration, in seconds
+        :type duration:
+        :param stop: Should the tone be stopped at the end of the duration? (Obsolete without wait)
+        :type stop:
+        :param wait: Should the function wait the duration period or exit immediately? (Fire & Forget)
+        :type wait:
+        """
+        # self.visa.write(f"SOUR1:FREQ {freq}")
+        self.configure_freq(freq)
+        self._set_outp(True)
+        logging.info(f"Setting freq to {freq}.")
+        if wait:
+            sleep(duration)
+            if stop:
+                self._set_outp(False, soft=soft_stop)
+
+    def _set_outp(self, output: bool, soft: bool = True):
+        if soft:
+            # outp_v_msg = str(self.volt) if output else "0.1"
+            # outp_o_msg = str(self.offset) if output else "0"
+            # self.visa.write(f"VOLT {outp_v_msg}")
+            # self.visa.write(f"VOLT:OFFS {outp_o_msg}")
+            outp_f_msg = str(self.freq) if output else "1"
+            self.visa.write(f'SOUR1:FREQ {outp_f_msg}')
+            self.visa.write("OUTP1 ON")
+        else:
+            outp_msg = "ON" if output else "OFF"
+            self.visa.write(f"OUTP1 {outp_msg}")
+        self.output = output
+
+    def stop(self):
+        self._set_outp(False, soft=False)
 
 
 if __name__ == '__main__':
@@ -162,10 +242,10 @@ if __name__ == '__main__':
         device = Device(devices[0])
         try:
             with VISA_Connection(device) as VISA:
-                VISA.write('SOUR1:FREQ 1000')
-                VISA.write('OUTP1 ON')
-                sleep(0.5)
-                VISA.write('OUTP1 OFF')
+                fg = Function_Gen(visa_instance=VISA, offset=1, vpp=2, pulse_width=8.96984e-4)
+                fg.play_tone(500, 0.2, stop=False)
+                fg.play_tone(800, 0.8, soft_stop=False)
+                fg.stop()
         except Exception as e:
             print(f"An error occurred during the main execution: {e}")
     else:
@@ -175,3 +255,5 @@ if __name__ == '__main__':
             logging.info(f"Available devices ({len(devices)}):")
             for device in devices:
                 logging.info(f"{device}")
+        else:
+            print("No available devices found")
