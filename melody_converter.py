@@ -147,8 +147,11 @@ if __name__ == '__main__':
         print("Available Devices:")
         for device in devices:
             print(device)
-        play_file_on_function_gen("Melodies/Twinkle.txt", fg.Device(devices[0]))
+        play_file_on_function_gen("Melodies/BeverlyHillsCopThemeSong.txt", fg.Device(devices[0]))
     else:
         print("No available devices found.")
+
+    # play_melody_from_file("Melodies/BeverlyHillsCopThemeSong.txt")
+
 # Example usage: Preview the tracks in "twinkle.mid"
 # preview_midi_tracks('Melodies/BeverlyHillsCopThemeSong.mid')

@@ -242,7 +242,7 @@ if __name__ == '__main__':
         device = Device(devices[0])
         try:
             with VISA_Connection(device) as VISA:
-                fg = Function_Gen(visa_instance=VISA, offset=1, vpp=2, pulse_width=8.96984e-4)
+                fg = Function_Gen(visa_instance=VISA, offset=1.15, vpp=2.3, pulse_width=186e-6)
                 fg.play_tone(500, 0.2, stop=False)
                 fg.play_tone(800, 0.8, soft_stop=False)
                 fg.stop()
