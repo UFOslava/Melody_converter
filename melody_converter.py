@@ -116,7 +116,8 @@ def play_file_on_function_gen(filename: str, device: fg.Device):
     Plays a melody from a text file to a function generator.
     """
     with fg.VISA_Connection(device) as visa:
-        function_generator = fg.Function_Gen(visa, vpp=2, offset=1, pulse_width=8.96984e-4)
+        # function_generator = fg.Function_Gen(visa, offset=1.15, vpp=2.3, pulse_width=186e-6)
+        function_generator = fg.Function_Gen(visa, offset=0, vpp=5, pulse_width=186e-6)
         with open(filename, 'r') as f:
             for line in f:
                 line = line.strip()
