@@ -141,14 +141,14 @@ class VISA_Connection:
         if not self.instrument:
             raise ValueError("Instrument is not connected.")
         self.instrument.write(msg)
-        logging.info(f'Sending "{msg}"')
+        logging.debug(f'Sending "{msg}"')
 
     def query(self, msg: str) -> str:
         if not self.instrument:
             raise ValueError("Instrument is not connected.")
-        logging.info(f'Sending "{msg}"')
+        logging.debug(f'Sending "{msg}"')
         answer = str(self.instrument.query(msg))
-        logging.info(f'Answer: "{answer.strip()}"')
+        logging.debug(f'Answer: "{answer.strip()}"')
         return answer
 
 
@@ -208,7 +208,7 @@ class Function_Gen:
         # self.visa.write(f"SOUR1:FREQ {freq}")
         self.configure_freq(freq)
         self._set_outp(True)
-        logging.info(f"Setting freq to {freq}.")
+        logging.debug(f"Setting freq to {freq}.")
         if wait:
             sleep(duration)
             if stop:

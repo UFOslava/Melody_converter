@@ -38,7 +38,7 @@ def play_note(midi_note: int, duration: float):
     play_tone(frequency, duration)
 
 
-def note_name_to_midi(note_name: str) -> int:
+def note_name_to_midi(note_name: str, octave_shift: int = 0) -> int:
     """
     Converts a note name (e.g., "C4") to a MIDI note number.
     """
@@ -61,7 +61,7 @@ def note_name_to_midi(note_name: str) -> int:
              'B': 11}
     note = note_name[:-1]
     octave = int(note_name[-1])
-    midi_note = 12 * (octave + 1) + notes[note]
+    midi_note = 12 * (octave + 1 + octave_shift) + notes[note]
     return midi_note
 
 
@@ -78,9 +78,12 @@ def play_melody_from_file(filename: str):
             parts = line.split(':')
             note_or_pause = parts[0]
             duration = float(parts[1])
+            logging.info(f"Note: {note_or_pause}")
 
             if note_or_pause.startswith('P'):
                 sd.sleep(int(duration * 1000))  # Pause in milliseconds
+            elif note_or_pause.startswith('#'):
+                continue
             else:
                 midi_note = note_name_to_midi(note_or_pause)
                 play_note(midi_note, duration)
@@ -116,8 +119,8 @@ def play_file_on_function_gen(filename: str, device: fg.Device):
     Plays a melody from a text file to a function generator.
     """
     with fg.VISA_Connection(device) as visa:
-        # function_generator = fg.Function_Gen(visa, offset=1.15, vpp=2.3, pulse_width=186e-6)
-        function_generator = fg.Function_Gen(visa, offset=0, vpp=5, pulse_width=186e-6)
+        function_generator = fg.Function_Gen(visa, offset=1.15, vpp=2.3, pulse_width=186e-6)
+        # function_generator = fg.Function_Gen(visa, offset=2.5, vpp=5, pulse_width=186e-6)
         with open(filename, 'r') as f:
             for line in f:
                 line = line.strip()
@@ -129,9 +132,12 @@ def play_file_on_function_gen(filename: str, device: fg.Device):
                 duration = float(parts[1])
 
                 if note_or_pause.startswith('P'):
+                    logging.info(f"Sleeping for {duration}s.")
                     sd.sleep(int(duration * 1000))  # Pause in milliseconds
+                elif note_or_pause.startswith('#'):
+                    continue
                 else:
-                    midi_note = note_name_to_midi(note_or_pause)
+                    midi_note = note_name_to_midi(note_or_pause, 0)
                     freq = midi_note_to_frequency(midi_note)
                     # play_note(midi_note, duration)
                     logging.info(f"Playing tone {freq:.3e}Hz ({note_or_pause}) for {duration}s.")
@@ -147,11 +153,21 @@ if __name__ == '__main__':
         print("Available Devices:")
         for device in devices:
             print(device)
-        play_file_on_function_gen("Melodies/BeverlyHillsCopThemeSong.txt", fg.Device(devices[0]))
+
+        # play_file_on_function_gen("Melodies/StairwayToHeaven.txt", fg.Device(devices[0]))
+        play_file_on_function_gen("Melodies/MoneyForNothing.txt", fg.Device(devices[0]))
+
+        # play_file_on_function_gen("Melodies/DaftPunk-HarderBetterFasterStronger.txt", fg.Device(devices[0]))
+        # play_file_on_function_gen("Melodies/BeverlyHillsCopThemeSong.txt", fg.Device(devices[0]))
     else:
         print("No available devices found.")
 
-    # play_melody_from_file("Melodies/BeverlyHillsCopThemeSong.txt")
+
+# play_melody_from_file("Melodies/Ode.txt")
+# play_melody_from_file("Melodies/DaftPunk-HarderBetterFasterStronger.txt")
+# play_melody_from_file("Melodies/BeverlyHillsCopThemeSong.txt")
+# play_melody_from_file("Melodies/Twinkle.txt")
+# play_melody_from_file("Melodies/Test Melody.txt")
 
 # Example usage: Preview the tracks in "twinkle.mid"
 # preview_midi_tracks('Melodies/BeverlyHillsCopThemeSong.mid')
